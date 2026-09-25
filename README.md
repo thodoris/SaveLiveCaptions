@@ -39,7 +39,8 @@ starts every time you log in, and starts it right away.
 
 You hear a short system sound when a hotkey is received. While recording, the
 small dashboard (● / ◼) sits in the top-left corner; its ◼ button stops too.
-Transcripts go to `RecordedCaptions\YYYY-MM-DD_HH-MM-SS_captions.txt`.
+Transcripts go to `Documents\SaveLiveCaptions-Recordings\YYYY-MM-DD_HH-MM-SS_captions.txt`
+in your user folder (your real Documents folder, even if OneDrive redirects it).
 
 Live Captions transcribes whatever your PC plays. To include what *you* say,
 enable **Include microphone audio** in the Live Captions settings (gear icon).
@@ -63,7 +64,7 @@ Everything is in [`src/function/config.py`](src/function/config.py):
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `SAVE_DIR` | `RecordedCaptions` in the project | Where transcripts go. `""` = ask with a folder picker |
+| `SAVE_DIR` | `Documents\SaveLiveCaptions-Recordings` | Where transcripts go. `~` and `%VARIABLES%` are expanded, so paths can be relative to the current user. `""` = ask with a folder picker |
 | `START_HOTKEY` / `STOP_HOTKEY` | `win+alt+c` / `win+alt+x` | Modifiers `win alt ctrl shift` + a key `A-Z 0-9 F1-F24` |
 | `HOTKEY_FEEDBACK_SOUND` | `True` | Beep when a hotkey is received |
 | `CLOSE_LIVE_CAPTIONS_ON_STOP` | `True` | Close the Live Captions window after saving |

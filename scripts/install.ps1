@@ -175,5 +175,6 @@ Write-Host ''
 Write-Host 'Done.' -ForegroundColor Green
 Write-Host "  $start  start Live Captions and record"
 Write-Host "  $stop  stop, save and close"
-Write-Host "  Transcripts: $(Join-Path $Root 'RecordedCaptions')"
+$saveDir = & $VenvPython -c "import sys; sys.path.insert(0, r'$Root\src'); from function import save; print(save.save_dir or '(asked each time)')"
+Write-Host "  Transcripts: $saveDir"
 Write-Host "  Logs:        $(Join-Path $Root 'logs')"

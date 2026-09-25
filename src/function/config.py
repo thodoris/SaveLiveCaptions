@@ -9,6 +9,8 @@ import os
 import sys
 from pathlib import Path
 
+from function.winapi import documents_folder
+
 # ============================================================
 # Paths
 # ============================================================
@@ -19,13 +21,16 @@ FROZEN = getattr(sys, 'frozen', False)
 # Folder that contains src/, HotkeyLauncher.pyw, ... (or the .exe when frozen)
 PROJECT_ROOT = Path(sys.executable).parent if FROZEN else Path(__file__).resolve().parents[2]
 
-# Where caption files are written.
-# Set to "" to be asked with a folder picker every time recording starts
-# (the original upstream behaviour).
-SAVE_DIR = (
-    os.path.expanduser("~/Documents/captions") if FROZEN
-    else str(PROJECT_ROOT / "RecordedCaptions")
-)
+# The current user's Documents folder (follows OneDrive / folder redirection)
+DOCUMENTS_DIR = documents_folder()
+
+# Where caption files are written. Examples:
+#   os.path.join(DOCUMENTS_DIR, "SaveLiveCaptions-Recordings")   (default)
+#   "~/Recordings"                        ~ = the current user's profile folder
+#   "%USERPROFILE%\\Desktop\\Captions"     environment variables are expanded
+#   str(PROJECT_ROOT / "RecordedCaptions") next to the program
+#   ""                                    ask with a folder picker each time (upstream behaviour)
+SAVE_DIR = os.path.join(DOCUMENTS_DIR, "SaveLiveCaptions-Recordings")
 
 # Launcher / recorder / uiautomation logs
 LOG_DIR = PROJECT_ROOT / "logs"

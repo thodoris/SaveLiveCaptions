@@ -19,7 +19,7 @@ flowchart LR
         WH[HotkeyListener thread<br/>STOP_HOTKEY] -.stop flag.-> D
     end
     H <-->|UI Automation| LC[Windows Live Captions]
-    H -->|append / replace lines| F[(RecordedCaptions/*.txt)]
+    H -->|append / replace lines| F[(Documents/SaveLiveCaptions-Recordings/*.txt)]
 ```
 
 | Process | Lifetime | Log |

@@ -5,6 +5,7 @@ Declaring argtypes/restype matters on 64-bit Python: without them ctypes
 truncates handles and pointer-sized parameters to 32-bit ints.
 '''
 import ctypes
+import os
 from ctypes import wintypes
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -42,6 +43,40 @@ user32.GetAsyncKeyState.restype = ctypes.c_short
 kernel32.GetCurrentThreadId.restype = wintypes.DWORD
 kernel32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
 kernel32.CreateMutexW.restype = wintypes.HANDLE
+
+
+class _GUID(ctypes.Structure):
+    _fields_ = [
+        ("Data1", wintypes.DWORD),
+        ("Data2", wintypes.WORD),
+        ("Data3", wintypes.WORD),
+        ("Data4", ctypes.c_ubyte * 8),
+    ]
+
+
+# {FDD39AD0-238F-46AF-ADB4-6C85480369C7}
+_FOLDERID_DOCUMENTS = _GUID(
+    0xFDD39AD0, 0x238F, 0x46AF, (ctypes.c_ubyte * 8)(0xAD, 0xB4, 0x6C, 0x85, 0x48, 0x03, 0x69, 0xC7)
+)
+
+
+def documents_folder() -> str:
+    '''
+    The user's real Documents folder. This differs from ~/Documents when
+    Documents is redirected, e.g. by OneDrive folder backup.
+    '''
+    path = ctypes.c_wchar_p()
+    try:
+        shell32 = ctypes.WinDLL("shell32")
+        ole32 = ctypes.WinDLL("ole32")
+        if shell32.SHGetKnownFolderPath(ctypes.byref(_FOLDERID_DOCUMENTS), 0, None, ctypes.byref(path)) == 0:
+            try:
+                return str(path.value)
+            finally:
+                ole32.CoTaskMemFree(path)
+    except OSError:
+        pass
+    return os.path.join(os.path.expanduser("~"), "Documents")
 
 
 def message_box(title: str, text: str, icon: int = MB_ICONINFORMATION) -> None:

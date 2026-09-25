@@ -14,7 +14,7 @@ import aiofiles
 from function import config
 
 saved_captions: list[tuple[float, str]] = []  # (time, caption) of recently saved lines
-save_dir = config.SAVE_DIR
+save_dir = os.path.expandvars(os.path.expanduser(config.SAVE_DIR)) if config.SAVE_DIR else ""
 
 
 def choose_save_dir() -> str:
@@ -36,7 +36,7 @@ def choose_save_dir() -> str:
         root.destroy()
 
         if not save_dir:
-            save_dir = os.path.expanduser("~/Documents/captions")
+            save_dir = os.path.join(config.DOCUMENTS_DIR, "SaveLiveCaptions-Recordings")
 
     os.makedirs(save_dir, exist_ok=True)
     return os.path.join(save_dir, f"{timestamp}_captions.txt")

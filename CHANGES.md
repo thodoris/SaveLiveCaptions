@@ -36,7 +36,10 @@ Compared with [LiveCaptionsHelper/SaveLiveCaptions](https://github.com/LiveCapti
 - Background processes wrote nothing visible. Logs now go to `logs/`, and
   uiautomation's `@AutomationLog.txt` goes there too.
 - Recordings from the `.exe` build would have been saved inside PyInstaller's
-  temporary folder. The frozen build now defaults to `~/Documents/captions`.
+  temporary folder.
+- Recordings are saved to `Documents\SaveLiveCaptions-Recordings` of the
+  current user. The real Documents folder is used even when OneDrive redirects
+  it. `SAVE_DIR` accepts `~` and `%VARIABLES%`.
 
 ## Code structure
 
