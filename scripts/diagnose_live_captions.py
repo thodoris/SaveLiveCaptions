@@ -1,3 +1,12 @@
+"""
+Dump the UI Automation tree of the Windows Live Captions window.
+
+Use this when recording stops working after a Windows update: it shows
+whether the "CaptionsScrollViewer" control the recorder reads from still
+exists. Open Live Captions first, then run:
+
+    .venv\Scripts\python.exe scripts\diagnose_live_captions.py
+"""
 import uiautomation as auto
 
 auto.SetGlobalSearchTimeout(1.0)
@@ -32,9 +41,10 @@ print("DESCENDANT CONTROL TREE")
 print("=" * 70)
 
 
-def safe(value, default="<error>"):
+def safe(control, attribute, default="<error>"):
+    """Read a UIA property; the Live Captions tree can change while we walk it."""
     try:
-        return value
+        return getattr(control, attribute)
     except Exception:
         return default
 
@@ -46,10 +56,10 @@ def inspect_control(control, depth=0, max_depth=10):
     indent = "  " * depth
 
     try:
-        name = safe(control.Name, "")
-        classname = safe(control.ClassName, "")
-        automation_id = safe(control.AutomationId, "")
-        control_type = safe(control.ControlTypeName, "")
+        name = safe(control, "Name", "")
+        classname = safe(control, "ClassName", "")
+        automation_id = safe(control, "AutomationId", "")
+        control_type = safe(control, "ControlTypeName", "")
     except Exception:
         return
 
@@ -105,10 +115,10 @@ try:
 
     if scroll.Exists(2):
         print("FOUND:")
-        print("  Name        :", safe(scroll.Name))
-        print("  ClassName   :", safe(scroll.ClassName))
-        print("  AutomationId:", safe(scroll.AutomationId))
-        print("  ControlType :", safe(scroll.ControlTypeName))
+        print("  Name        :", safe(scroll, "Name"))
+        print("  ClassName   :", safe(scroll, "ClassName"))
+        print("  AutomationId:", safe(scroll, "AutomationId"))
+        print("  ControlType :", safe(scroll, "ControlTypeName"))
     else:
         print("NOT FOUND")
 except Exception as e:
@@ -126,10 +136,10 @@ try:
 
     if target.Exists(2):
         print("FOUND:")
-        print("  Name        :", safe(target.Name))
-        print("  ClassName   :", safe(target.ClassName))
-        print("  AutomationId:", safe(target.AutomationId))
-        print("  ControlType :", safe(target.ControlTypeName))
+        print("  Name        :", safe(target, "Name"))
+        print("  ClassName   :", safe(target, "ClassName"))
+        print("  AutomationId:", safe(target, "AutomationId"))
+        print("  ControlType :", safe(target, "ControlTypeName"))
     else:
         print("NOT FOUND")
 except Exception as e:
