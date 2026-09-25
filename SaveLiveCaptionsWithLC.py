@@ -1,5 +1,7 @@
-import uiautomation as auto  
-import time
+'''
+Entry point for the "LC autostart" PyInstaller build (see .github/workflows):
+opens Windows Live Captions, then shows the dashboard.
+'''
 import sys
 import os
 
@@ -14,21 +16,12 @@ src_path = os.path.join(root_path, 'src')
 if src_path not in sys.path:
     sys.path.append(src_path)
 
-import main
+import main  # noqa: E402
+from function import livecaptions  # noqa: E402
 
-# Launch with “Win + Ctrl + L”
-def launch_lc():
-    try:
-        print("Try to launch Windows Live Captions...")
-        auto.SendKeys('{Ctrl}{Win}l')
-        time.sleep(1)   
-
-    except Exception as e:
-        print(f"Error: {e}")
-        
 if __name__ == "__main__":
-    launch_lc()
-    
+    print("Try to launch Windows Live Captions...")
+    livecaptions.start()
+
     print("Launch Main.py...")
-    
     main.main()

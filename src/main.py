@@ -1,466 +1,161 @@
+'''
+Floating dashboard that records Windows Live Captions to a text file.
+
+    python src/main.py          # show the dashboard, press ● to record
+    python src/main.py --auto   # start recording immediately (used by the hotkey worker)
+
+The dashboard runs Tk and an asyncio loop on the same thread: every 10 ms
+Tk hands control to asyncio for one iteration, which drives the caption
+hook (function.texthook.hook). The global stop hotkey lives on its own
+thread (function.hotkeys) and only sets a flag that the Tk loop polls.
+'''
+import argparse
+import asyncio
+import io
 import sys
-import os
+import threading
 import tkinter as tk
 import tkinter.messagebox as msgbox
-import ctypes
-import ctypes.wintypes
-import uiautomation as auto
-from function.texthook import hook, lc_detect
-from function.save import choose_save_dir, close_file
-from function import save
-import asyncio
+
+from function import config, livecaptions
+from function.hotkeys import HotkeyListener, format_hotkey
+from function.save import choose_save_dir
+from function.texthook import hook
 
 
-HOTKEY_ID_STOP = 1001
-WM_HOTKEY = 0x0312
+class Dashboard:
+    '''The small always-on-top window with the ● record and ◼ stop buttons.'''
 
-MOD_ALT = 0x0001
-MOD_WIN = 0x0008
+    def __init__(self, loop: asyncio.AbstractEventLoop, auto_record: bool = False):
+        self.loop = loop
+        self.auto_record = auto_record
+        self.exit_event = asyncio.Event()
+        self.hook_task: asyncio.Task | None = None
+        self.stopping = False
+        self.destroyed = False
+        self.stop_requested = threading.Event()  # set from the hotkey thread
 
-VK_X = 0x58
+        self.window = tk.Tk()
+        self.window.title("CatchCaptionsTool")
+        # Size to fit the buttons so they are not clipped on high-DPI displays
+        self.window.geometry("+0+0")
+        self.window.overrideredirect(True)
+        self.window.wm_attributes("-topmost", True)
 
+        self.window.bind("<ButtonPress-1>", self._start_move)
+        self.window.bind("<B1-Motion>", self._do_move)
 
-def register_stop_hotkey():
-    result = ctypes.windll.user32.RegisterHotKey(
-        None,
-        HOTKEY_ID_STOP,
-        MOD_ALT | MOD_WIN,
-        VK_X
-    )
+        stop_hint = f"Stop ({format_hotkey(config.STOP_HOTKEY)})"
+        self.start_btn = tk.Button(self.window, text="⚫", command=self.start_capture)
+        self.start_btn.pack(padx=10, pady=10)
+        self.stop_btn = tk.Button(self.window, text="◼", command=self.stop_capture)
+        self.stop_btn.pack(padx=10, pady=10)
+        print(f"Dashboard ready. {stop_hint}")
 
-    if result:
-        print("Global hotkey registered: Win+Alt+X")
-        return True
+    # --------------------------------------------------------
+    # Recording
+    # --------------------------------------------------------
 
-    print("WARNING: Could not register Win+Alt+X")
-    return False
-
-
-def unregister_stop_hotkey():
-    ctypes.windll.user32.UnregisterHotKey(
-        None,
-        HOTKEY_ID_STOP
-    )
-
-
-def check_stop_hotkey(window, stop_callback):
-    try:
-        msg = ctypes.wintypes.MSG()
-
-        while ctypes.windll.user32.PeekMessageW(
-            ctypes.byref(msg),
-            None,
-            WM_HOTKEY,
-            WM_HOTKEY,
-            1
-        ):
-            if (
-                msg.message == WM_HOTKEY
-                and msg.wParam == HOTKEY_ID_STOP
-            ):
-                stop_callback()
-
-    except Exception as exc:
-        print(f"WARNING: Hotkey processing error: {exc}")
-
-    try:
-        if window.winfo_exists():
-            window.after(
-                50,
-                check_stop_hotkey,
-                window,
-                stop_callback
-            )
-    except tk.TclError:
-        pass
-
-
-# ============================================================
-# GLOBAL STATE
-# ============================================================
-
-file_handle = None
-exit_event = asyncio.Event()
-hook_task = None
-
-
-# ============================================================
-# CLOSE APPLICATION
-# ============================================================
-
-def close_live_captions():
-    try:
-        auto.SetGlobalSearchTimeout(0.5)
-
-        desktop = auto.GetRootControl()
-
-        captions_window = desktop.Control(
-            searchDepth=1,
-            ClassName="LiveCaptionsDesktopWindow"
-        )
-
-        if not captions_window.Exists(0.5):
-            print("Windows Live Captions window not found.")
+    def start_capture(self) -> None:
+        if self.hook_task is not None or self.stopping:
             return
 
-        hwnd = captions_window.NativeWindowHandle
+        self.exit_event.clear()
+        self.start_btn.config(state=tk.DISABLED)
+        self.stop_btn.config(state=tk.NORMAL)
 
-        if not hwnd:
-            print("WARNING: Could not get Live Captions window handle.")
-            return
-
-        print("Closing Windows Live Captions...")
-
-        WM_CLOSE = 0x0010
-
-        result = ctypes.windll.user32.PostMessageW(
-            hwnd,
-            WM_CLOSE,
-            0,
-            0
-        )
-
-        if result:
-            print("Windows Live Captions close request sent.")
-        else:
-            error = ctypes.GetLastError()
-            print(
-                f"WARNING: Could not send close request "
-                f"(Windows error {error})."
-            )
-
-    except Exception as exc:
-        print(
-            f"WARNING: Could not close Windows Live Captions: {exc}"
-        )
-
-async def close_all(window):
-    global hook_task
-
-    if hook_task is not None:
-        await hook_task
-        hook_task = None
-
-    await close_file()
-
-    close_live_captions()
-
-    unregister_stop_hotkey()
-
-    window.destroy()
-
-
-# ============================================================
-# DASHBOARD
-# ============================================================
-
-def dashboard(loop):
-
-    window = tk.Tk()
-
-    window.title("CatchCaptionsTool")
-
-    # ORIGINAL PROJECT WINDOW
-    window.geometry("60x160")
-    window.overrideredirect(True)
-    window.wm_attributes("-topmost", True)
-
-    # --------------------------------------------------------
-    # CHECK LIVE CAPTIONS
-    # --------------------------------------------------------
-
-    if not lc_detect():
-
-        msgbox.showerror(
-            "Error",
-            "Live Captions Not Found"
-        )
-
-        window.destroy()
-
-        return
-
-    # --------------------------------------------------------
-    # START CAPTURE
-    # --------------------------------------------------------
-
-    def start_capture():
-
-        global hook_task
-
-        exit_event.clear()
-
-        start_btn.config(
-            state=tk.DISABLED
-        )
-
-        stop_btn.config(
-            state=tk.NORMAL
-        )
-
-        # save.save_dir is preconfigured in main().
-        #
-        # Therefore choose_save_dir() will NOT open the
-        # folder-selection dialog.
         filename = choose_save_dir()
+        print(f"Recording captions to {filename}")
+        self.hook_task = self.loop.create_task(hook(filename, self.exit_event))
 
-        print()
-        print("=" * 60)
-        print("Recording captions")
-        print("=" * 60)
-        print(
-            f"Output file:\n{filename}"
-        )
+    def stop_capture(self) -> None:
+        '''Stop recording, save, and close the dashboard. Safe to call twice.'''
+        if self.stopping:
+            return
+        self.stopping = True
 
-        hook_task = loop.create_task(
-            hook(
-                filename,
-                exit_event
-            )
-        )
+        self.exit_event.set()
+        self.start_btn.config(state=tk.DISABLED)
+        self.stop_btn.config(state=tk.DISABLED)
+        self.loop.create_task(self._shutdown())
 
-    # --------------------------------------------------------
-    # STOP CAPTURE
-    # --------------------------------------------------------
+    async def _shutdown(self) -> None:
+        if self.hook_task is not None:
+            await self.hook_task  # hook() saves the remaining sentences and cleans the file
+            self.hook_task = None
 
-    def stop_capture():
+        if config.CLOSE_LIVE_CAPTIONS_ON_STOP:
+            livecaptions.close()
 
-        exit_event.set()
-
-        start_btn.config(
-            state=tk.NORMAL
-        )
-
-        stop_btn.config(
-            state=tk.DISABLED
-        )
-
-        loop.create_task(
-            close_all(window)
-        )
-
-    register_stop_hotkey()
+        self.destroyed = True
+        self.window.destroy()
 
     # --------------------------------------------------------
-    # WINDOW DRAGGING
+    # Window dragging
     # --------------------------------------------------------
 
-    def start_move(event):
+    def _start_move(self, event: tk.Event) -> None:
+        self._drag_x, self._drag_y = event.x, event.y
 
-        window.x = event.x
-        window.y = event.y
-
-    def stop_move(event):
-
-        window.x = None
-        window.y = None
-
-    def do_move(event):
-
-        deltax = event.x - window.x
-        deltay = event.y - window.y
-
-        x = window.winfo_x() + deltax
-        y = window.winfo_y() + deltay
-
-        window.geometry(
-            f"+{x}+{y}"
-        )
-
-    window.bind(
-        "<ButtonPress-1>",
-        start_move
-    )
-
-    window.bind(
-        "<ButtonRelease-1>",
-        stop_move
-    )
-
-    window.bind(
-        "<B1-Motion>",
-        do_move
-    )
+    def _do_move(self, event: tk.Event) -> None:
+        x = self.window.winfo_x() + event.x - self._drag_x
+        y = self.window.winfo_y() + event.y - self._drag_y
+        self.window.geometry(f"+{x}+{y}")
 
     # --------------------------------------------------------
-    # ORIGINAL RECORD BUTTON
+    # Event loop glue
     # --------------------------------------------------------
 
-    start_btn = tk.Button(
-        window,
-        text="⚫",
-        command=start_capture
-    )
+    def _poll(self) -> None:
+        if self.destroyed:
+            return
 
-    start_btn.pack(
-        pady=10
-    )
+        if self.stop_requested.is_set():
+            self.stop_requested.clear()
+            print(f"{format_hotkey(config.STOP_HOTKEY)} pressed.")
+            self.stop_capture()
 
-    # --------------------------------------------------------
-    # ORIGINAL STOP BUTTON
-    # --------------------------------------------------------
+        # Run one iteration of the asyncio loop
+        self.loop.call_soon(self.loop.stop)
+        self.loop.run_forever()
 
-    stop_btn = tk.Button(
-        window,
-        text="◼",
-        command=stop_capture
-    )
+        if not self.destroyed:
+            self.window.after(10, self._poll)
 
-    stop_btn.pack(
-        pady=10
-    )
+    def run(self) -> None:
+        if not livecaptions.is_running():
+            msgbox.showerror("Error", "Live Captions Not Found")
+            self.window.destroy()
+            return
 
-    # --------------------------------------------------------
-    # ASYNCIO POLLING
-    # --------------------------------------------------------
-
-    def poll_loop():
+        hotkeys = HotkeyListener({config.STOP_HOTKEY: self.stop_requested.set})
+        hotkeys.start()
         try:
-            if not window.winfo_exists():
-                return
-
-            loop.call_soon(
-                loop.stop
-            )
-
-            loop.run_forever()
-
-            if window.winfo_exists():
-                window.after(
-                    10,
-                    poll_loop
-                )
-
-        except tk.TclError:
-            # The Tk application has already been destroyed.
-            # This can happen during normal shutdown when a
-            # previously scheduled poll callback fires.
-            return
-
-    window.after(
-        10,
-        poll_loop
-    )
-
-    window.after(
-        50,
-        check_stop_hotkey,
-        window,
-        stop_capture
-    )
-
-    # --------------------------------------------------------
-    # AUTOMATIC RECORDING
-    # --------------------------------------------------------
-    #
-    # This is the only behavioral addition to the original
-    # dashboard.
-    #
-    # The original dashboard remains visible and uses its
-    # original Record / Stop buttons.
-    #
-    # We simply trigger the SAME start_capture() function
-    # automatically after the window has been created.
-    #
-    # The 1-second delay gives Tkinter time to create/display
-    # the original controller before recording starts.
-    # --------------------------------------------------------
-
-    def automatic_start():
-
-        if not window.winfo_exists():
-            return
-
-        print(
-            "Automatically starting recording..."
-        )
-
-        start_capture()
-
-    window.after(
-        1000,
-        automatic_start
-    )
-
-    # --------------------------------------------------------
-    # START ORIGINAL GUI
-    # --------------------------------------------------------
-
-    window.mainloop()
+            self.window.after(10, self._poll)
+            if self.auto_record:
+                # Give Tk a moment to show the window first
+                self.window.after(1000, self.start_capture)
+            self.window.mainloop()
+        finally:
+            hotkeys.stop()
 
 
-# ============================================================
-# MAIN
-# ============================================================
-
-def main():
-
-    # --------------------------------------------------------
-    # SAVE DIRECTORY
-    # --------------------------------------------------------
-    #
-    # This is our other minimal modification.
-    #
-    # The original save.py defines:
-    #
-    #     save_dir = ""
-    #
-    # and opens the folder picker only when save_dir is empty.
-    #
-    # By setting it here, the original Record button continues
-    # to work normally but no folder dialog appears.
-    # --------------------------------------------------------
-
-    save_dir = os.path.join(
-        os.path.dirname(
-            os.path.dirname(
-                os.path.abspath(__file__)
-            )
-        ),
-        "RecordedCaptions"
-    )
-
-    os.makedirs(
-        save_dir,
-        exist_ok=True
-    )
-
-    save.save_dir = save_dir
-
-    print(
-        "=" * 60
-    )
-    print(
-        "SaveLiveCaptions"
-    )
-    print(
-        "=" * 60
-    )
-    print(
-        f"Recording directory:\n{save_dir}"
-    )
-
-    # --------------------------------------------------------
-    # ASYNCIO
-    # --------------------------------------------------------
-
+def main(auto_record: bool = False) -> None:
     loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        Dashboard(loop, auto_record=auto_record).run()
+    finally:
+        loop.close()
 
-    asyncio.set_event_loop(
-        loop
-    )
-
-    # --------------------------------------------------------
-    # ORIGINAL DASHBOARD
-    # --------------------------------------------------------
-
-    dashboard(loop)
-
-
-# ============================================================
-# ENTRY POINT
-# ============================================================
 
 if __name__ == "__main__":
+    # Captions may contain characters the console code page cannot show
+    # (e.g. Chinese on a cp1253 console); never let print() end a recording.
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(errors="replace")
 
-    main()
+    parser = argparse.ArgumentParser(description="Save Windows Live Captions to a text file.")
+    parser.add_argument("--auto", action="store_true", help="start recording immediately")
+    main(auto_record=parser.parse_args().auto)

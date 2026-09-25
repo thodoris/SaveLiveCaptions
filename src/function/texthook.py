@@ -1,13 +1,11 @@
-import sys
-import os
 import asyncio
-import uiautomation as auto
 from typing import Dict, Any
 import time
 from . import save
 from .save import save_replace_txt, save_txt
 import re
 
+from function import livecaptions
 from function.dedup import Deduplicator
 from function.config import MIN_LENGTH, SIMILARITY, STABLE_THRESHOLD, MAX_SAVED_SENTENCES
 
@@ -59,12 +57,20 @@ def split_into_sentences(text: str)-> list[str]:
     current=""
     
 
+    def ends_sentence(pattern: str, current: str, lookahead: str) -> bool:
+        # Include the next character so "(?![0-9])" can see it: otherwise "3." is
+        # split off before the "14" of "3.14" arrives. Ignore matches that are
+        # only in the lookahead character itself.
+        m = re.search(pattern, current + lookahead)
+        return m is not None and m.end() <= len(current)
+
     while i < len(text):
         current += text[i]
+        lookahead = text[i + 1:i + 2]
         is_chinese = bool(re.search(r'[\u4e00-\u9fff]', current))
         # -- for Chinese, split by punctuation --
         if is_chinese:
-            if re.search(chinese_punctuation, current):
+            if ends_sentence(chinese_punctuation, current, lookahead):
                 sentence = current.strip()
                 for k, v in placeholders.items():
                     sentence = sentence.replace(k, v)
@@ -73,7 +79,7 @@ def split_into_sentences(text: str)-> list[str]:
                 current = ""      
         else:
             # -- for non-Chinese, split by punctuation --
-            if re.search(general_punctuation, current):
+            if ends_sentence(general_punctuation, current, lookahead):
                 sentence = current.strip()
                 for k, v in placeholders.items():
                     sentence = sentence.replace(k, v)
@@ -138,68 +144,39 @@ def is_last_line_of_file(current_j: int, total_lines: int) -> bool:
     return current_j >= total_lines - 3   
 
 def lc_detect() -> bool:
-    try:
-        auto.SetGlobalSearchTimeout(0.5)
-        
-        desktop = auto.GetRootControl()
-        captions_window = desktop.Control(
-            searchDepth=1,
-            ClassName="LiveCaptionsDesktopWindow",
-            timeout = 0.2
-        )
-
-
-        if captions_window.Exists(0):
-            print ("Live Captions Found")
-            return True
-        else:
-            print(f"Live Captions Not Found")
-            return False
-
-    except Exception as e:
-        print(f"Live Captions Not Found: {str(e)[:50]}...")
-        return False
+    found = livecaptions.is_running()
+    print("Live Captions Found" if found else "Live Captions Not Found")
+    return found
 
 
 async def hook(filename, exit_event):
     global last_full_text, current_sentences
     seen_sentences = set()  # for quick lookup of already saved sentences
+    # start every recording from a clean slate
+    last_full_text = ""
+    current_sentences = {}
 
     try:
-        if not lc_detect():
+        captions_window = livecaptions.find_window()
+        if captions_window is None:
+            print("Live Captions Not Found")
             return False
 
-        desktop = auto.GetRootControl()
-        captions_window = desktop.Control(
-            searchDepth=1,
-            ClassName="LiveCaptionsDesktopWindow"
-        )
-
-        # Wait until the actual captions content control is available.
-        # Live Captions creates this control only after caption content
-        # has started appearing.
+        # Live Captions only creates the text control once the first caption
+        # appears, which can take a while if nobody is speaking yet.
+        # Keep waiting until the user stops the recording.
+        print("Waiting for the first caption...")
         captions_scrollviewer = None
-
-        for _ in range(90):  # up to ~20 seconds
-            try:
-                captions_scrollviewer = captions_window.Control(
-                    searchDepth=10,
-                    AutomationId="CaptionsScrollViewer",
-                    ClassName="ScrollViewer"
-                )
-
-                if captions_scrollviewer.Exists(0.5):
-                    print("CaptionsScrollViewer found.")
-                    break
-
-            except Exception:
-                pass
-
-            await asyncio.sleep(0.25)
-
-        if captions_scrollviewer is None or not captions_scrollviewer.Exists(0):
-            print("ERROR: CaptionsScrollViewer was not found.")
-            return False
+        while captions_scrollviewer is None:
+            if exit_event.is_set():
+                return False
+            if not captions_window.Exists(0):
+                print("ERROR: Live Captions window was closed.")
+                return False
+            captions_scrollviewer = livecaptions.find_captions_control(captions_window, timeout=0)
+            if captions_scrollviewer is None:
+                await asyncio.sleep(0.5)
+        print("CaptionsScrollViewer found.")
 
         print("Start capture...")
         print(f"Settings: STABLE_THRESHOLD={STABLE_THRESHOLD}, MIN_LENGTH={MIN_LENGTH}, SIMILARITY={SIMILARITY}")
