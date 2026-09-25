@@ -1,4 +1,15 @@
 assets/
 build/
 dist/
-venv/
+venv/installer_output/
+
+# Local environment and caches
+.venv/
+__pycache__/
+*.pyc
+
+# Runtime output (private transcripts and logs)
+RecordedCaptions/
+logs/
+*.log
+@AutomationLog.txt

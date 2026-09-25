@@ -174,12 +174,32 @@ async def hook(filename, exit_event):
             searchDepth=1,
             ClassName="LiveCaptionsDesktopWindow"
         )
-        await asyncio.sleep(1)  # Wait for the window not to be empty
-        captions_scrollviewer = captions_window.Control(
-            searchDepth=5,
-            AutomationId="CaptionsScrollViewer",
-            ClassName="ScrollViewer"
-        )
+
+        # Wait until the actual captions content control is available.
+        # Live Captions creates this control only after caption content
+        # has started appearing.
+        captions_scrollviewer = None
+
+        for _ in range(90):  # up to ~20 seconds
+            try:
+                captions_scrollviewer = captions_window.Control(
+                    searchDepth=10,
+                    AutomationId="CaptionsScrollViewer",
+                    ClassName="ScrollViewer"
+                )
+
+                if captions_scrollviewer.Exists(0.5):
+                    print("CaptionsScrollViewer found.")
+                    break
+
+            except Exception:
+                pass
+
+            await asyncio.sleep(0.25)
+
+        if captions_scrollviewer is None or not captions_scrollviewer.Exists(0):
+            print("ERROR: CaptionsScrollViewer was not found.")
+            return False
 
         print("Start capture...")
         print(f"Settings: STABLE_THRESHOLD={STABLE_THRESHOLD}, MIN_LENGTH={MIN_LENGTH}, SIMILARITY={SIMILARITY}")

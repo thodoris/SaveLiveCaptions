@@ -34,6 +34,18 @@ If you prefer to run the code directly, follow these steps in your bash/PowerShe
    ```
    > **Good News, You can now edit the `src/function/config.py` to modify the quality of saving on your own.**
 
+### Background Hotkeys
+
+For daily use, run `StartSaveLiveCaptions.vbs` once. It starts
+`HotkeyLauncher.pyw` without opening a terminal.
+
+- **Win + Alt + C** starts Live Captions and recording.
+- **Win + Alt + X** stops recording, saves the file, closes Live Captions, and
+   exits the controller.
+
+Repeated start presses are ignored while a recording workflow is running. The
+launcher appends troubleshooting messages to `HotkeyLauncher.log`.
+
 ### Guidelines
 
 ---
