@@ -39,6 +39,13 @@ as described below. It is based on upstream commit `309ebae`
   every letter "a" became `1`). It was rewritten to follow English number
   grammar, including years spoken in pairs, with unit tests. *(upstream PR:
   [#22](https://github.com/LiveCaptionsHelper/SaveLiveCaptions/pull/22))*
+- **Duplicate check was case-sensitive**: "The meeting was held ..." was not
+  recognised inside "Today the meeting was held ...", so both were kept.
+  Sentences are now compared case-insensitively, with numbers normalized.
+- **Corrected sentences were discarded**: when Live Captions first showed
+  "... percent last." and then "... percent last quarter.", the longer version
+  was rejected because it added only one word. A sentence that continues a
+  saved one now replaces it, during recording and when you stop.
 - **Pressing stop twice** (button and hotkey) could crash while closing the window.
 - **Printing a caption could end a recording** when the console code page cannot
   show it (for example, Chinese on a Greek console).

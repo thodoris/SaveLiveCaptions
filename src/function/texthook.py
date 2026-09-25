@@ -272,20 +272,30 @@ async def hook(filename, exit_event):
                 else:
                     trailing_text = last_full_text.strip()
                 
-                second_last_text = last_full_text[last_two_punct_match.end(): last_punct_match.start()+1].strip() if last_two_punct_match else ""
-                if second_last_text and second_last_text not in seen_sentences:
-                    if not any(deduper.similarity_ratio(second_last_text, s) >= SIMILARITY for s in seen_sentences):
-                        print(f"[SAVE SECOND LAST ON EXIT] {second_last_text}")
-                        seen_sentences.add(second_last_text)
-                        save.saved_captions.append((time.time(), second_last_text))
-                        await save_txt(filename,save.saved_captions[-1])
+                async def save_on_exit(text: str, label: str) -> None:
+                    if not text or text in seen_sentences:
+                        return
+                    # a more complete version of a recently saved line replaces it
+                    for i, (saved_time, saved_text) in enumerate(save.saved_captions):
+                        if (deduper.similarity_ratio(text, saved_text) >= SIMILARITY
+                                and deduper.is_better_version(text, saved_text)):
+                            old = save.saved_captions[i]
+                            save.saved_captions[i] = (saved_time, text)
+                            seen_sentences.discard(saved_text)
+                            seen_sentences.add(text)
+                            print(f"[REPLACE {label} ON EXIT] {text}")
+                            await save_replace_txt(filename, old, save.saved_captions[i])
+                            return
+                    if any(deduper.similarity_ratio(text, s) >= SIMILARITY for s in seen_sentences):
+                        return
+                    print(f"[SAVE {label} ON EXIT] {text}")
+                    seen_sentences.add(text)
+                    save.saved_captions.append((time.time(), text))
+                    await save_txt(filename, save.saved_captions[-1])
 
-                if trailing_text and trailing_text not in seen_sentences:
-                    if not any(deduper.similarity_ratio(trailing_text, s) >= SIMILARITY for s in seen_sentences):
-                        print(f"[SAVE TRAILING ON EXIT] {trailing_text}")
-                        seen_sentences.add(trailing_text)
-                        save.saved_captions.append((time.time(), trailing_text))
-                        await save_txt(filename,save.saved_captions[-1])
+                second_last_text = last_full_text[last_two_punct_match.end(): last_punct_match.start()+1].strip() if last_two_punct_match else ""
+                await save_on_exit(second_last_text, "SECOND LAST")
+                await save_on_exit(trailing_text, "TRAILING")
         except Exception as e:
             print(f"Error saving last sentences: {e}")
         

@@ -63,10 +63,30 @@ class Deduplicator:
             return False
         return True
 
+    def comparable(self, s: str) -> str:
+        '''Normalized sentence without its final punctuation, for containment checks.'''
+        return self.normalize_sentence(s).rstrip('.!?。！？')
+
+    def is_continuation(self, new_sentence: str, old_sentence: str) -> bool:
+        '''True if new_sentence is old_sentence followed by more words.'''
+        new_core = self.comparable(new_sentence)
+        old_core = self.comparable(old_sentence)
+        if not old_core or len(new_core) <= len(old_core) or not new_core.startswith(old_core):
+            return False
+        # must continue at a word boundary: "last" -> "last quarter", not "last" -> "lasting"
+        next_char = new_core[len(old_core)]
+        return next_char in ' ,，' or bool(re.match(r'[一-鿿]', next_char))
+
     def is_better_version(self, new_sentence: str, old_sentence: str) -> bool:
         # core: new is better
         new_s=new_sentence.strip()
         old_s=old_sentence.strip()
+
+        # a continuation of the old sentence, e.g. Live Captions first shows
+        # "... last." and then "... last quarter."; checked before the
+        # similarity test because one extra word is > 0.95 similar in long sentences
+        if self.is_continuation(new_s, old_s):
+            return True
 
         # if they are almost the same, consider them as equal and not replace
         if self.similarity_ratio(new_s, old_s) >= 0.95:
@@ -165,9 +185,12 @@ class Deduplicator:
                     if len(sentence) >= len(future_sentence):
                         continue  # long sentence can't be subset of shorter one
                     
-                    # calculate longest common prefix ratio
-                    clean_sent = sentence.rstrip('.!?')
-                    clean_future = future_sentence.rstrip('.!?')
+                    # compare case-insensitively with numbers normalized, so that
+                    # "The meeting ..." is found inside "Today the meeting ..."
+                    clean_sent = self.comparable(sentence)
+                    clean_future = self.comparable(future_sentence)
+                    if len(clean_sent) >= len(clean_future):
+                        continue
                     
                     if len(clean_sent) == 0: # empty after stripping, skip subset check and let it be removed by non-substantial filter
                         continue 
