@@ -37,7 +37,8 @@ as described below. It is based on upstream commit `309ebae`
   matched number words inside other words and combined them wrongly
   ("twenty twenty six" became `406`, "nineteen eighty" became `9teen 8y`, and
   every letter "a" became `1`). It was rewritten to follow English number
-  grammar, including years spoken in pairs, with unit tests.
+  grammar, including years spoken in pairs, with unit tests. *(upstream PR:
+  [#22](https://github.com/LiveCaptionsHelper/SaveLiveCaptions/pull/22))*
 - **Pressing stop twice** (button and hotkey) could crash while closing the window.
 - **Printing a caption could end a recording** when the console code page cannot
   show it (for example, Chinese on a Greek console).

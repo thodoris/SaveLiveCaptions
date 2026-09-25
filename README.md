@@ -156,6 +156,8 @@ separate, minimal pull requests:
 
 - [LiveCaptionsHelper/SaveLiveCaptions#21](https://github.com/LiveCaptionsHelper/SaveLiveCaptions/pull/21):
   decimals such as `3.14` were split into two sentences.
+- [LiveCaptionsHelper/SaveLiveCaptions#22](https://github.com/LiveCaptionsHelper/SaveLiveCaptions/pull/22):
+  `word_to_number` mangled numbers and words ("twenty twenty six" became `406`).
 
 ## Credits and license
 
