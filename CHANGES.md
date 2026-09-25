@@ -1,6 +1,10 @@
 # Changes in this fork
 
-Compared with [LiveCaptionsHelper/SaveLiveCaptions](https://github.com/LiveCaptionsHelper/SaveLiveCaptions).
+This personal fork differs from
+[LiveCaptionsHelper/SaveLiveCaptions](https://github.com/LiveCaptionsHelper/SaveLiveCaptions)
+as described below. It is based on upstream commit `309ebae`
+("[Fix] Fix exit bug with only incomplete sentence"). Fixes marked
+*(upstream PR)* have also been offered to the original project.
 
 ## Hotkey workflow
 
@@ -27,7 +31,8 @@ Compared with [LiveCaptionsHelper/SaveLiveCaptions](https://github.com/LiveCapti
 - **Recording gave up after ~20 s of silence**: the recorder now waits for the
   first caption until you stop.
 - **Decimals were split into two sentences** (`3.` / `14 today.`) in
-  `split_into_sentences`.
+  `split_into_sentences`. *(upstream PR:
+  [#21](https://github.com/LiveCaptionsHelper/SaveLiveCaptions/pull/21))*
 - **Pressing stop twice** (button and hotkey) could crash while closing the window.
 - **Printing a caption could end a recording** when the console code page cannot
   show it (for example, Chinese on a Greek console).

@@ -1,3 +1,16 @@
+'''
+Capture loop: turns the ever-changing Live Captions text into transcript lines.
+
+hook() polls the caption text every 250 ms and, for each poll:
+  1. split_into_sentences() cuts the text into sentences, protecting URLs,
+     e-mail addresses, domains and decimals such as 3.14
+  2. incomplete sentences (no final punctuation yet) are skipped
+  3. a sentence similar to one saved in the last few seconds replaces that
+     line if it is a better version (find_and_replace_similar)
+  4. otherwise it is appended once it has been seen STABLE_THRESHOLD times
+When stopped, the pending and trailing sentences are flushed and the file is
+cleaned by Deduplicator.cleanup_file. Thresholds live in config.py.
+'''
 import asyncio
 from typing import Dict, Any
 import time

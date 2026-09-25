@@ -1,12 +1,24 @@
-# Save Live Captions
+# Save Live Captions (personal fork)
+
+> [!NOTE]
+> **This is a personal project and a fork.** It is a fork of
+> [LiveCaptionsHelper/SaveLiveCaptions](https://github.com/LiveCaptionsHelper/SaveLiveCaptions)
+> by M.T.Arden, adapted for my own daily use on Windows 11. It is **not
+> affiliated with or endorsed by** the original authors. It is shared as is,
+> without support or release guarantees, and may change at any time.
+> For the original application, its releases and its issue tracker, go to the
+> [original repository](https://github.com/LiveCaptionsHelper/SaveLiveCaptions).
 
 Save the text of **Windows Live Captions** to timestamped text files, so a
 meeting, lecture or video you listened to can be read back later.
 
-> This is a fork of [LiveCaptionsHelper/SaveLiveCaptions](https://github.com/LiveCaptionsHelper/SaveLiveCaptions).
-> It adds a background **hotkey workflow** (one key combination starts Live
-> Captions and recording, another stops and saves), a one-step installer with
-> autostart at login, log files, and several fixes. See [CHANGES.md](CHANGES.md).
+What this fork adds on top of the original (details in [CHANGES.md](CHANGES.md)):
+
+- a background **hotkey workflow**: one key combination opens Live Captions and
+  starts recording, another stops and saves
+- a one-step **installer** with autostart at login, plus status, restart and uninstall
+- log files, configurable hotkeys and save folder, and several bug fixes
+- restructured code with unit tests and [architecture documentation](docs/ARCHITECTURE.md)
 
 ```text
 [10:02:13] Good morning everyone, let's start with the results from last week.
@@ -19,6 +31,8 @@ meeting, lecture or video you listened to can be read back later.
   Open Live Captions once by hand first to finish its setup and language download.
 - Python 3.10 or newer from [python.org](https://www.python.org/downloads/)
   (tick *Add python.exe to PATH* during setup).
+
+Developed and tested on Windows 11 (build 26200) with Python 3.12.
 
 ## Quick start (hotkey workflow)
 
@@ -80,8 +94,9 @@ next recording.
   exit. Add `--auto` to start recording immediately.
 - **Recorder without hotkeys**: `.venv\Scripts\python.exe AutoStartLiveCaptions.py`
   opens Live Captions and starts recording.
-- **Prebuilt .exe**: the upstream [Releases](https://github.com/LiveCaptionsHelper/SaveLiveCaptions/releases)
-  page has builds of the original app (without the hotkey workflow).
+- **Prebuilt .exe**: this fork publishes no releases. The original project's
+  [Releases](https://github.com/LiveCaptionsHelper/SaveLiveCaptions/releases)
+  page has builds of the original app, without this fork's hotkey workflow.
 
 ## Troubleshooting
 
@@ -102,19 +117,51 @@ sentence is stable, and appends it to the file. Improved versions of a sentence
 replace earlier ones, and duplicates are cleaned up when you stop. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the components and data flow.
 
+## Repository layout
+
+| Path | Purpose |
+| --- | --- |
+| `install.cmd`, `scripts/install.ps1` | Install, repair, status, restart, uninstall (this fork) |
+| `HotkeyLauncher.pyw` | Background hotkey service, started at login (this fork) |
+| `AutoStartLiveCaptions.py` | Recording worker started by the hotkey (this fork) |
+| `src/main.py` | The floating ● / ◼ dashboard (original, restructured) |
+| `src/function/config.py` | All settings |
+| `src/function/texthook.py`, `dedup.py`, `transformation.py`, `save.py` | Caption capture, de-duplication and saving (original, with fixes) |
+| `src/function/livecaptions.py`, `hotkeys.py`, `winapi.py`, `applog.py` | Live Captions control, hotkeys, Win32 calls, logging (this fork) |
+| `scripts/diagnose_live_captions.py` | Dumps the Live Captions UI tree for troubleshooting |
+| `tests/` | Unit tests (this fork) |
+| `docs/ARCHITECTURE.md` | Processes, modules and capture pipeline |
+| `SaveLiveCaptionsWithLC.py`, `installer.iss`, `.github/workflows/` | The original project's `.exe` and installer packaging. Kept for reference, not maintained here |
+
+Not in Git (see `.gitignore`): `.venv/` (created by the installer) and `logs/`.
+
 ## Development
 
 ```powershell
 .venv\Scripts\python.exe -m unittest discover -s tests   # unit tests
 ```
 
-Pulling improvements from the original project:
+Git remotes: `origin` is this fork, `upstream` is the original project.
+To pull improvements from the original project:
 
 ```powershell
 git fetch upstream
 git merge upstream/main
 ```
 
-## License
+### Contributing back
 
-MIT, see [LICENSE](LICENSE). Original work by LiveCaptionsHelper.
+Fixes that also apply to the original project are offered upstream as
+separate, minimal pull requests:
+
+- [LiveCaptionsHelper/SaveLiveCaptions#21](https://github.com/LiveCaptionsHelper/SaveLiveCaptions/pull/21):
+  decimals such as `3.14` were split into two sentences.
+
+## Credits and license
+
+- Original project: [LiveCaptionsHelper/SaveLiveCaptions](https://github.com/LiveCaptionsHelper/SaveLiveCaptions),
+  Copyright (c) 2025 M.T.Arden. It provides the caption capture, de-duplication
+  and dashboard this fork builds on.
+- Fork modifications: Copyright (c) 2026 thodoris.
+
+Both are released under the MIT License, see [LICENSE](LICENSE).

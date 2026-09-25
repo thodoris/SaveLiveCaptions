@@ -1,5 +1,11 @@
 # Architecture
 
+This page describes this personal fork. The caption capture pipeline
+(`texthook`, `dedup`, `transformation`, `save`) comes from the original
+[LiveCaptionsHelper/SaveLiveCaptions](https://github.com/LiveCaptionsHelper/SaveLiveCaptions).
+The hotkey service, the installer, and the `livecaptions`, `hotkeys`, `winapi`
+and `applog` modules were added in this fork.
+
 ## Processes
 
 The hotkey workflow uses two processes, so that every recording starts from a

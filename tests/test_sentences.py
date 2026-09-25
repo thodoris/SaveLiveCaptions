@@ -1,3 +1,4 @@
+"""Unit tests for sentence splitting and completeness checks (function.texthook)."""
 import sys
 import unittest
 from pathlib import Path

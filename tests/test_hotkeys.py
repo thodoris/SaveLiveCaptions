@@ -1,3 +1,4 @@
+"""Unit tests for parsing hotkey strings such as "win+alt+c" (function.hotkeys)."""
 import sys
 import unittest
 from pathlib import Path

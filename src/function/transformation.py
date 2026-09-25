@@ -1,6 +1,22 @@
+'''
+Convert spoken numbers to digits for sentence comparison.
+
+Live Captions sometimes writes the same number as words and later as digits.
+The deduplicator normalizes sentences with word_to_number() before comparing
+them, so that both versions look alike. The saved transcript text is never
+changed by this module.
+
+Known issue (inherited from upstream): NUM_PATTERN has no word boundaries, so
+it also matches number words inside other words, and the results do not match
+the examples in the comments below:
+    "twenty twenty six" -> "406"   (intended "2026")
+    "nineteen eighty"   -> "9teen 8y"
+    "a meeting"         -> "1 meeting"
+Because both sentences in a comparison are transformed the same way, the
+effect is limited to slightly less accurate similarity scores.
+'''
 import re
 
-# 
 NUM_WORDS = {
     "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4,
     "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
