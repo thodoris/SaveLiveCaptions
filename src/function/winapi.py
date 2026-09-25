@@ -54,29 +54,33 @@ class _GUID(ctypes.Structure):
     ]
 
 
-# {FDD39AD0-238F-46AF-ADB4-6C85480369C7}
-_FOLDERID_DOCUMENTS = _GUID(
-    0xFDD39AD0, 0x238F, 0x46AF, (ctypes.c_ubyte * 8)(0xAD, 0xB4, 0x6C, 0x85, 0x48, 0x03, 0x69, 0xC7)
-)
+def _guid(data1: int, data2: int, data3: int, *data4: int) -> _GUID:
+    return _GUID(data1, data2, data3, (ctypes.c_ubyte * 8)(*data4))
 
 
-def documents_folder() -> str:
+# Known folder ids -> fallback name under the user profile
+FOLDERID_DOCUMENTS = _guid(0xFDD39AD0, 0x238F, 0x46AF, 0xAD, 0xB4, 0x6C, 0x85, 0x48, 0x03, 0x69, 0xC7)
+FOLDERID_DOWNLOADS = _guid(0x374DE290, 0x123F, 0x4565, 0x91, 0x64, 0x39, 0xC4, 0x92, 0x5E, 0x46, 0x7B)
+
+
+def known_folder(folder_id: _GUID, fallback: str) -> str:
     '''
-    The user's real Documents folder. This differs from ~/Documents when
-    Documents is redirected, e.g. by OneDrive folder backup.
+    The real location of a user folder such as Documents or Downloads.
+    It differs from ~/<fallback> when the folder is redirected, e.g. by
+    OneDrive folder backup or by moving it to another drive.
     '''
     path = ctypes.c_wchar_p()
     try:
         shell32 = ctypes.WinDLL("shell32")
         ole32 = ctypes.WinDLL("ole32")
-        if shell32.SHGetKnownFolderPath(ctypes.byref(_FOLDERID_DOCUMENTS), 0, None, ctypes.byref(path)) == 0:
+        if shell32.SHGetKnownFolderPath(ctypes.byref(folder_id), 0, None, ctypes.byref(path)) == 0:
             try:
                 return str(path.value)
             finally:
                 ole32.CoTaskMemFree(path)
     except OSError:
         pass
-    return os.path.join(os.path.expanduser("~"), "Documents")
+    return os.path.join(os.path.expanduser("~"), fallback)
 
 
 def message_box(title: str, text: str, icon: int = MB_ICONINFORMATION) -> None:

@@ -36,7 +36,7 @@ def choose_save_dir() -> str:
         root.destroy()
 
         if not save_dir:
-            save_dir = os.path.join(config.DOCUMENTS_DIR, "SaveLiveCaptions-Recordings")
+            save_dir = config.DEFAULT_SAVE_DIR
 
     os.makedirs(save_dir, exist_ok=True)
     return os.path.join(save_dir, f"{timestamp}_captions.txt")

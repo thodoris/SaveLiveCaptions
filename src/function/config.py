@@ -9,7 +9,7 @@ import os
 import sys
 from pathlib import Path
 
-from function.winapi import documents_folder
+from function.winapi import FOLDERID_DOCUMENTS, FOLDERID_DOWNLOADS, known_folder
 
 # ============================================================
 # Paths
@@ -21,16 +21,21 @@ FROZEN = getattr(sys, 'frozen', False)
 # Folder that contains src/, HotkeyLauncher.pyw, ... (or the .exe when frozen)
 PROJECT_ROOT = Path(sys.executable).parent if FROZEN else Path(__file__).resolve().parents[2]
 
-# The current user's Documents folder (follows OneDrive / folder redirection)
-DOCUMENTS_DIR = documents_folder()
+# The current user's folders, wherever they really are (OneDrive, other drive, ...)
+DOCUMENTS_DIR = known_folder(FOLDERID_DOCUMENTS, "Documents")
+DOWNLOADS_DIR = known_folder(FOLDERID_DOWNLOADS, "Downloads")
+
+# Default transcript folder. Downloads is used because, unlike Documents,
+# it is not synced by OneDrive folder backup.
+DEFAULT_SAVE_DIR = os.path.join(DOWNLOADS_DIR, "SaveLiveCaptions-Recordings")
 
 # Where caption files are written. Examples:
-#   os.path.join(DOCUMENTS_DIR, "SaveLiveCaptions-Recordings")   (default)
+#   DEFAULT_SAVE_DIR                      Downloads\SaveLiveCaptions-Recordings (default)
+#   os.path.join(DOCUMENTS_DIR, "Captions")   Documents (may be synced by OneDrive)
 #   "~/Recordings"                        ~ = the current user's profile folder
 #   "%USERPROFILE%\\Desktop\\Captions"     environment variables are expanded
-#   str(PROJECT_ROOT / "RecordedCaptions") next to the program
 #   ""                                    ask with a folder picker each time (upstream behaviour)
-SAVE_DIR = os.path.join(DOCUMENTS_DIR, "SaveLiveCaptions-Recordings")
+SAVE_DIR = DEFAULT_SAVE_DIR
 
 # Launcher / recorder / uiautomation logs
 LOG_DIR = PROJECT_ROOT / "logs"
