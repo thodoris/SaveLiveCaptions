@@ -1,34 +1,51 @@
-# Changes From Original Repository
+# Changes in this fork
 
-This working copy adds a daily-use Windows hotkey workflow on top of the original SaveLiveCaptions controller.
+Compared with [LiveCaptionsHelper/SaveLiveCaptions](https://github.com/LiveCaptionsHelper/SaveLiveCaptions).
 
-## Added
+## Hotkey workflow
 
-- `HotkeyLauncher.pyw`: invisible global hotkey service for `Win + Alt + C`.
-- `StartSaveLiveCaptions.vbs`: starts the hotkey service without showing a console.
-- `HotkeyLauncher.log`: troubleshooting log created by the launcher.
-- A Windows Startup-folder shortcut so the launcher starts at login.
+- `HotkeyLauncher.pyw`: resident background service started at login. It
+  registers **Win+Alt+C**, which starts a recording.
+- `AutoStartLiveCaptions.py`: recording worker. It opens Windows Live Captions
+  by running `LiveCaptions.exe` directly (no longer by sending the toggling
+  `Ctrl+Win+L` shortcut), then starts recording right away.
+- **Win+Alt+X** stops, saves, closes Live Captions and exits.
+- Both hotkeys can be changed in `src/function/config.py`. A system sound
+  confirms each key press. A message box appears if a hotkey is already taken.
 
-## Changed
+## Installation
 
-- `AutoStartLiveCaptions.py` now runs the Live Captions and recording workflow as a worker launched by the hotkey service.
-- `src/main.py` registers `Win + Alt + X` as a global stop shortcut.
-- Stop handling saves and closes the recording, closes Windows Live Captions, unregisters the hotkey, and exits the controller.
-- Repeated `Win + Alt + C` presses are ignored while a recording workflow is already running.
-- Recording output is automatically placed in the project's `RecordedCaptions` directory, without opening a folder picker.
+- `install.cmd` / `scripts/install.ps1`: creates `.venv`, installs
+  dependencies, creates or repairs the Startup shortcut, and starts the
+  service. Also supports `-Status`, `-Restart` and `-Uninstall`.
+- Replaces the manual Startup shortcut and `StartSaveLiveCaptions.vbs`.
 
-## Preserved
+## Fixes
 
-- The original floating controller remains available.
-- The original record and stop buttons remain available.
-- No additional Python package was added.
-- The existing caption capture and save logic remains in use.
+- **Stop hotkey never fired**: Tk's event loop consumed the `WM_HOTKEY`
+  messages. Hotkeys now run on a dedicated listener thread (`function/hotkeys.py`).
+- **Recording gave up after ~20 s of silence**: the recorder now waits for the
+  first caption until you stop.
+- **Decimals were split into two sentences** (`3.` / `14 today.`) in
+  `split_into_sentences`.
+- **Pressing stop twice** (button and hotkey) could crash while closing the window.
+- **Printing a caption could end a recording** when the console code page cannot
+  show it (for example, Chinese on a Greek console).
+- **Buttons clipped on high-DPI displays**: the dashboard now sizes itself to
+  fit its buttons.
+- Background processes wrote nothing visible. Logs now go to `logs/`, and
+  uiautomation's `@AutomationLog.txt` goes there too.
+- Recordings from the `.exe` build would have been saved inside PyInstaller's
+  temporary folder. The frozen build now defaults to `~/Documents/captions`.
 
-## Daily Use
+## Code structure
 
-After Windows login, use:
-
-- `Win + Alt + C` to start Live Captions and recording.
-- `Win + Alt + X` to stop, save, close Live Captions, and exit.
-
-The startup shortcut targets `.venv\\Scripts\\pythonw.exe` and runs `HotkeyLauncher.pyw` from the project directory.
+- New `function/livecaptions.py`, `hotkeys.py`, `winapi.py` and `applog.py`
+  replace code that was copied in three places.
+- `main.py`: a `Dashboard` class instead of module globals. Plain
+  `python src/main.py` behaves like upstream. `--auto` starts recording
+  immediately.
+- `save.py`: removed an unused file handle that was never closed, plus
+  duplicated similarity helpers.
+- Unit tests in `tests/` for hotkey parsing and sentence splitting.
+- `README.md` and `docs/ARCHITECTURE.md` rewritten and extended.
