@@ -33,6 +33,11 @@ as described below. It is based on upstream commit `309ebae`
 - **Decimals were split into two sentences** (`3.` / `14 today.`) in
   `split_into_sentences`. *(upstream PR:
   [#21](https://github.com/LiveCaptionsHelper/SaveLiveCaptions/pull/21))*
+- **Spoken numbers were mangled during duplicate detection**: `word_to_number`
+  matched number words inside other words and combined them wrongly
+  ("twenty twenty six" became `406`, "nineteen eighty" became `9teen 8y`, and
+  every letter "a" became `1`). It was rewritten to follow English number
+  grammar, including years spoken in pairs, with unit tests.
 - **Pressing stop twice** (button and hotkey) could crash while closing the window.
 - **Printing a caption could end a recording** when the console code page cannot
   show it (for example, Chinese on a Greek console).
